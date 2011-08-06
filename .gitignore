@@ -1,0 +1,7 @@
+src/ocp
+src/_test*
+*.5
+*.6
+*.8
+*.out
+sitemap.xml*
