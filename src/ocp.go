@@ -14,8 +14,11 @@ import (
 	"xml"
 )
 
-var (
+const (
 	version string = "2.0"
+)
+
+var (
 	sem     chan bool
 	wg      *sync.WaitGroup
 	client  *http.Client
