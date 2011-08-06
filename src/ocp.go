@@ -14,6 +14,16 @@ import (
 	"xml"
 )
 
+var (
+	sem chan bool
+	wg  *sync.WaitGroup
+
+	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
+	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
+	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
+	verbose     *bool   = flag.Bool("v", false, "show information about primed pages")
+)
+
 type Url struct {
 	Loc string
 	// Lastmod string
@@ -73,22 +83,21 @@ func GetUrlsFromSitemap(path string) (*Urlset, os.Error) {
 	return &urlset, err
 }
 
-func PrimeUrlset(urlset *Urlset, sem chan bool) {
-	wg := &sync.WaitGroup{}
+func PrimeUrlset(urlset *Urlset) {
 	if *verbose {
 		fmt.Println("URLs in sitemap: ", urlset.Len())
 	}
 	for _, url := range urlset.Url {
 		sem <- true
 		wg.Add(1)
-		go PrimeUrl(url, sem, wg)
+		go PrimeUrl(url)
 	}
 	wg.Wait()
 }
 
-func PrimeUrl(url Url, sem <-chan bool, wg *sync.WaitGroup) os.Error {
+func PrimeUrl(url Url) os.Error {
 	var (
-		err os.Error
+		err   os.Error
 		found bool = false
 	)
 	if *verbose {
@@ -108,13 +117,6 @@ func PrimeUrl(url Url, sem <-chan bool, wg *sync.WaitGroup) os.Error {
 	<-sem
 	return err
 }
-
-var (
-	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
-	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
-	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
-	verbose     *bool   = flag.Bool("v", false, "show information about primed pages")
-)
 
 func main() {
 	var (
@@ -140,7 +142,8 @@ func main() {
 		fmt.Println(err)
 	} else {
 		sort.Sort(urlset)
-		sem := make(chan bool, *throttle)
-		PrimeUrlset(urlset, sem)
+		sem = make(chan bool, *throttle)
+		wg = &sync.WaitGroup{}
+		PrimeUrlset(urlset)
 	}
 }
