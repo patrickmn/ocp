@@ -87,8 +87,10 @@ func PrimeUrlset(urlset *Urlset, sem chan bool) {
 }
 
 func PrimeUrl(url Url, sem <-chan bool, wg *sync.WaitGroup) os.Error {
-	var err os.Error
-	var found bool = false
+	var (
+		err os.Error
+		found bool = false
+	)
 	if *verbose {
 		fmt.Printf("%s (weight %d)\n", url.Loc, int(url.Priority*100))
 	}
