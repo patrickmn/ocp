@@ -17,6 +17,7 @@ import (
 var (
 	sem chan bool
 	wg  *sync.WaitGroup
+	client *http.Client
 
 	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
@@ -57,7 +58,7 @@ func GetUrlsFromSitemap(path string) (*Urlset, os.Error) {
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		var res *http.Response
-		res, err = http.DefaultClient.Get(path)
+		res, err = client.Get(path)
 		if res.Status == "404 Not Found" {
 			return &Urlset{}, os.NewError("Web server returned 404 Not Found")
 		} else if res.Status != "200 OK" {
@@ -111,7 +112,7 @@ func PrimeUrl(url Url) os.Error {
 		}
 	}
 	if !found {
-		_, err = http.DefaultClient.Get(url.Loc)
+		_, err = client.Get(url.Loc)
 	}
 	wg.Done()
 	<-sem
@@ -142,6 +143,7 @@ func main() {
 		fmt.Println(err)
 	} else {
 		sort.Sort(urlset)
+		client = http.DefaultClient
 		sem = make(chan bool, *throttle)
 		wg = &sync.WaitGroup{}
 		PrimeUrlset(urlset)
