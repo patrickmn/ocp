@@ -138,12 +138,12 @@ func main() {
 		return
 	}
 	path := flag.Arg(0)
+	client = http.DefaultClient
 	urlset, err = GetUrlsFromSitemap(path)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		sort.Sort(urlset)
-		client = http.DefaultClient
 		sem = make(chan bool, *throttle)
 		wg = &sync.WaitGroup{}
 		PrimeUrlset(urlset)
