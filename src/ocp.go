@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	sem chan bool
-	wg  *sync.WaitGroup
-	client *http.Client
+	version string = "2.0"
+	sem     chan bool
+	wg      *sync.WaitGroup
+	client  *http.Client
 
 	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
@@ -126,6 +127,9 @@ func main() {
 	)
 	flag.Parse()
 	if flag.NArg() == 0 {
+		fmt.Println("Optimus Cache Prime", version)
+		fmt.Println("http://patrickmylund.com/projects/ocp/")
+		fmt.Println("-----")
 		flag.Usage()
 		fmt.Println("")
 		fmt.Println("Examples:")
