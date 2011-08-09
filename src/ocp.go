@@ -19,9 +19,9 @@ const (
 )
 
 var (
-	sem     chan bool
-	wg      *sync.WaitGroup
-	client  *http.Client
+	sem    chan bool
+	wg     *sync.WaitGroup
+	client *http.Client
 
 	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
