@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"http"
 	"os"
+	"sort"
 	"sync"
 	"testing"
 )
 
-func initVars() {
+func init() {
 	flag.Parse()
 	sem = make(chan bool, 1)
 	wg = &sync.WaitGroup{}
@@ -25,13 +26,13 @@ func DummyServer(address string, ch chan<- string) {
 }
 
 func TestPrimeUrlset(t *testing.T) {
-	initVars()
 	ch := make(chan string)
 	go DummyServer(":8081", ch)
 	a := Url{"http://localhost:8081/a", 0.4}
 	b := Url{"http://localhost:8081/b", 0.6}
 	c := Url{"http://localhost:8081/c", 1.0}
 	urlset := &Urlset{Url: []Url{a, b, c}}
+	sort.Sort(urlset)
 	go PrimeUrlset(urlset)
 	for i := 0; i < 3; i++ {
 		msg := <-ch
@@ -71,6 +72,6 @@ func TestGetUrlsFromSitemap(t *testing.T) {
 		urlset.Url[1].Priority != 0.6 ||
 		urlset.Url[2].Loc != "http://localhost:8081/c" ||
 		urlset.Url[2].Priority != 1.0 {
-		t.Error("Incorrectly parsed urlset:", urlset)
+		t.Fatal("Incorrectly parsed urlset:", urlset)
 	}
 }
