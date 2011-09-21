@@ -21,9 +21,9 @@ const (
 )
 
 var (
-	sem    chan bool
-	wg     *sync.WaitGroup
-	client *http.Client
+	sem chan bool
+	wg = &sync.WaitGroup{}
+	client = http.DefaultClient
 
 	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
@@ -94,6 +94,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	}
 	err = xml.Unmarshal(f, &urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
+		ch := make(chan []Url, *throttle+1)
 		if *verbose {
 			log.Printf("%s is a Sitemapindex. Fetching Urlsets from sitemaps...\n", path)
 		}
@@ -101,13 +102,21 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 			if *verbose {
 				log.Printf("Adding Urlset from sitemap %s\n", v.Loc)
 			}
-			// Follow is false as Sitemapindex spec says sitemapindex children are illegal
-			ourlset, err := GetUrlsFromSitemap(v.Loc, false)
-			if err != nil {
-				fmt.Printf("Error getting Urlset from sitemap %s: %s", v.Loc, err)
-				continue
-			}
-			for _, ov := range ourlset.Url {
+			sem <- true
+			go func(loc string) {
+				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
+				ourlset, err := GetUrlsFromSitemap(loc, false)
+				if err != nil {
+					fmt.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
+				} else {
+					ch <- ourlset.Url
+				}
+				<-sem
+			}(v.Loc)
+		}
+		for i := 0; i < len(urlset.Sitemap); i++ {
+			v := <-ch
+			for _, ov := range v {
 				urlset.Url = append(urlset.Url, ov)
 			}
 		}
@@ -171,15 +180,14 @@ func main() {
 		fmt.Println("If specifying a sitemap URL, make sure to prepend http:// or https://")
 		return
 	}
+	sem = make(chan bool, *throttle)
+	fmt.Println("THrottle is: ", *throttle)
 	path := flag.Arg(0)
-	client = http.DefaultClient
 	urlset, err = GetUrlsFromSitemap(path, true)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		sort.Sort(urlset)
-		sem = make(chan bool, *throttle)
-		wg = &sync.WaitGroup{}
 		PrimeUrlset(urlset)
 	}
 }

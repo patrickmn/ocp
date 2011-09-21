@@ -6,15 +6,12 @@ import (
 	"http"
 	"os"
 	"sort"
-	"sync"
 	"testing"
 )
 
 func init() {
 	flag.Parse()
-	sem = make(chan bool, 1)
-	wg = &sync.WaitGroup{}
-	client = http.DefaultClient
+	sem = make(chan bool, *throttle)
 }
 
 func DummyServer(address string, ch chan<- string) {
