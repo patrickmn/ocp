@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"http"
 	"io"
+	"log"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"sync"
+	"url"
 	"xml"
 )
 
 const (
-	version string = "2.0"
+	version string = "2.1"
 )
 
 var (
@@ -29,6 +31,11 @@ var (
 	verbose     *bool   = flag.Bool("v", false, "show information about primed pages")
 )
 
+type Sitemap struct {
+	Loc string
+	// Lastmod string
+}
+
 type Url struct {
 	Loc string
 	// Lastmod string
@@ -38,6 +45,7 @@ type Url struct {
 
 type Urlset struct {
 	XMLName xml.Name "urlset"
+	Sitemap []Sitemap
 	Url     []Url
 }
 
@@ -54,7 +62,7 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func GetUrlsFromSitemap(path string) (*Urlset, os.Error) {
+func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
@@ -85,38 +93,57 @@ func GetUrlsFromSitemap(path string) (*Urlset, os.Error) {
 		}
 	}
 	err = xml.Unmarshal(f, &urlset)
+	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
+		if *verbose {
+			log.Printf("%s is a Sitemapindex. Fetching Urlsets from sitemaps...\n", path)
+		}
+		for _, v := range urlset.Sitemap {
+			if *verbose {
+				log.Printf("Adding Urlset from sitemap %s\n", v.Loc)
+			}
+			// Follow is false as Sitemapindex spec says sitemapindex children are illegal
+			ourlset, err := GetUrlsFromSitemap(v.Loc, false)
+			if err != nil {
+				fmt.Printf("Error getting Urlset from sitemap %s: %s", v.Loc, err)
+				continue
+			}
+			for _, ov := range ourlset.Url {
+				urlset.Url = append(urlset.Url, ov)
+			}
+		}
+	}
 	return &urlset, err
 }
 
 func PrimeUrlset(urlset *Urlset) {
 	if *verbose {
-		fmt.Println("URLs in sitemap: ", urlset.Len())
+		log.Println("URLs in sitemap: ", urlset.Len())
 	}
-	for _, url := range urlset.Url {
+	for _, u := range urlset.Url {
 		sem <- true
 		wg.Add(1)
-		go PrimeUrl(url)
+		go PrimeUrl(u)
 	}
 	wg.Wait()
 }
 
-func PrimeUrl(url Url) os.Error {
+func PrimeUrl(u Url) os.Error {
 	var (
 		err   os.Error
 		found bool = false
 	)
 	if *verbose {
-		fmt.Printf("%s (weight %d)\n", url.Loc, int(url.Priority*100))
+		log.Printf("%s (weight %d)\n", u.Loc, int(u.Priority*100))
 	}
 	if *localDir != "" {
-		parsed, err := http.ParseURLReference(url.Loc)
+		parsed, err := url.ParseWithReference(u.Loc)
 		joined := path.Join(*localDir, parsed.Path, *localSuffix)
 		if _, err = os.Lstat(joined); err == nil {
 			found = true
 		}
 	}
 	if !found {
-		_, err = client.Get(url.Loc)
+		_, err = client.Get(u.Loc)
 	}
 	wg.Done()
 	<-sem
@@ -146,7 +173,7 @@ func main() {
 	}
 	path := flag.Arg(0)
 	client = http.DefaultClient
-	urlset, err = GetUrlsFromSitemap(path)
+	urlset, err = GetUrlsFromSitemap(path, true)
 	if err != nil {
 		fmt.Println(err)
 	} else {

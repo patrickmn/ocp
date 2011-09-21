@@ -29,7 +29,7 @@ func TestGetUrlsFromSitemap(t *testing.T) {
 	fname := "_test/testsitemap.xml"
 	f, err := os.Create(fname)
 	if err != nil {
-		t.Fatal("Couldn't write test sitemap ", fname)
+		t.Fatal("Couldn't write test sitemap:", fname)
 	}
 	f.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -47,7 +47,80 @@ func TestGetUrlsFromSitemap(t *testing.T) {
 </url>
 </urlset>`)
 	f.Close()
-	urlset, err := GetUrlsFromSitemap(fname)
+	urlset, err := GetUrlsFromSitemap(fname, true)
+	if err != nil ||
+		urlset.Url[0].Loc != "http://localhost:8081/a" ||
+		urlset.Url[0].Priority != 0.4 ||
+		urlset.Url[1].Loc != "http://localhost:8081/b" ||
+		urlset.Url[1].Priority != 0.6 ||
+		urlset.Url[2].Loc != "http://localhost:8081/c" ||
+		urlset.Url[2].Priority != 1.0 {
+		t.Fatal("Incorrectly parsed urlset:", urlset)
+	}
+}
+
+func TestGetUrlsFromSitemapindex(t *testing.T) {
+	fname := "_test/testchild1.xml"
+	f, err := os.Create(fname)
+	if err != nil {
+		t.Fatal("Couldn't write test child 1:", fname)
+	}
+	f.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+    <loc>http://localhost:8081/a</loc>
+    <priority>0.4</priority>
+</url>
+</urlset>`)
+	f.Close()
+
+	fname = "_test/testchild2.xml"
+	f, err = os.Create(fname)
+	if err != nil {
+		t.Fatal("Couldn't write test child 2:", fname)
+	}
+	f.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+    <loc>http://localhost:8081/b</loc>
+    <priority>0.6</priority>
+</url>
+</urlset>`)
+	f.Close()
+
+	fname = "_test/testchild3.xml"
+	f, err = os.Create(fname)
+	if err != nil {
+		t.Fatal("Couldn't write test child 3:", fname)
+	}
+	f.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url>
+    <loc>http://localhost:8081/c</loc>
+    <priority>1.0</priority>
+</url>
+</urlset>`)
+	f.Close()
+
+	fname = "_test/testsitemapindex.xml"
+	f, err = os.Create(fname)
+	if err != nil {
+		t.Fatal("Couldn't write test sitemapindex:", fname)
+	}
+	f.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/siteindex.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap>
+    <loc>_test/testchild1.xml</loc>
+</sitemap>
+<sitemap>
+    <loc>_test/testchild2.xml</loc>
+</sitemap>
+<sitemap>
+    <loc>_test/testchild3.xml</loc>
+</sitemap>
+</sitemapindex>`)
+	f.Close()
+	urlset, err := GetUrlsFromSitemap(fname, true)
 	if err != nil ||
 		urlset.Url[0].Loc != "http://localhost:8081/a" ||
 		urlset.Url[0].Priority != 0.4 ||
