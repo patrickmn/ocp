@@ -107,7 +107,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
 				ourlset, err := GetUrlsFromSitemap(loc, false)
 				if err != nil {
-					fmt.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
+					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
 				} else {
 					ch <- ourlset.Url
 				}
@@ -143,7 +143,7 @@ func PrimeUrl(u Url) os.Error {
 		found bool = false
 	)
 	if *verbose {
-		log.Printf("%s (weight %d)\n", u.Loc, int(u.Priority*100))
+		log.Printf("Get (weight %d) %s\n", int(u.Priority*100), u.Loc)
 	}
 	if *localDir != "" {
 		parsed, err := url.ParseWithReference(u.Loc)
@@ -182,11 +182,10 @@ func main() {
 		return
 	}
 	sem = make(chan bool, *throttle)
-	fmt.Println("THrottle is: ", *throttle)
 	path := flag.Arg(0)
 	urlset, err = GetUrlsFromSitemap(path, true)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("Error:", err)
 	} else {
 		sort.Sort(urlset)
 		PrimeUrlset(urlset)
