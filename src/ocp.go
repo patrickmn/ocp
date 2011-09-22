@@ -114,6 +114,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 				<-sem
 			}(v.Loc)
 		}
+		// Add every URL from each Urlset to the main Urlset
 		for i := 0; i < len(urlset.Sitemap); i++ {
 			v := <-ch
 			for _, ov := range v {
