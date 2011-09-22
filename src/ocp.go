@@ -94,7 +94,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	}
 	err = xml.Unmarshal(f, &urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
-		ch := make(chan []Url, *throttle+1)
+		ch := make(chan []Url, len(urlset.Sitemap))
 		if *verbose {
 			log.Printf("%s is a Sitemapindex. Fetching Urlsets from sitemaps...\n", path)
 		}
