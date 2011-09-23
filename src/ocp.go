@@ -99,10 +99,10 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 			log.Printf("%s is a Sitemapindex. Fetching Urlsets from sitemaps...\n", path)
 		}
 		for _, v := range urlset.Sitemap {
+			sem <- true
 			if *verbose {
 				log.Printf("Adding Urlset from sitemap %s\n", v.Loc)
 			}
-			sem <- true
 			go func(loc string) {
 				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
 				ourlset, err := GetUrlsFromSitemap(loc, false)
