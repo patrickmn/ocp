@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"errors"
 	"flag"
 	"fmt"
 	"http"
@@ -21,8 +22,8 @@ const (
 )
 
 var (
-	sem chan bool
-	wg = &sync.WaitGroup{}
+	sem    chan bool
+	wg     = &sync.WaitGroup{}
 	client = http.DefaultClient
 
 	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
@@ -62,19 +63,19 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
+func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
-		err    os.Error
+		err    error
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		var res *http.Response
 		res, err = client.Get(path)
 		if res.Status == "404 Not Found" {
-			return &Urlset{}, os.NewError("Web server returned 404 Not Found")
+			return &Urlset{}, errors.New("Web server returned 404 Not Found")
 		} else if res.Status != "200 OK" {
-			return &Urlset{}, os.NewError("Web server did not serve the file")
+			return &Urlset{}, errors.New("Web server did not serve the file")
 		} else {
 			f = res.Body
 		}
@@ -89,7 +90,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		f, err = gzip.NewReader(f)
 		defer f.Close()
 		if err != nil {
-			return &Urlset{}, os.NewError("Gzip decompression failed")
+			return &Urlset{}, errors.New("Gzip decompression failed")
 		}
 	}
 	err = xml.Unmarshal(f, &urlset)
@@ -116,10 +117,8 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		}
 		// Add every URL from each Urlset to the main Urlset
 		for i := 0; i < len(urlset.Sitemap); i++ {
-			v := <-ch
-			for _, ov := range v {
-				urlset.Url = append(urlset.Url, ov)
-			}
+			childUrlset := <-ch
+			urlset.Url = append(urlset.Url, childUrlset...)
 		}
 	}
 	return &urlset, err
@@ -137,9 +136,9 @@ func PrimeUrlset(urlset *Urlset) {
 	wg.Wait()
 }
 
-func PrimeUrl(u Url) os.Error {
+func PrimeUrl(u Url) error {
 	var (
-		err   os.Error
+		err   error
 		found bool = false
 	)
 	if *verbose {
@@ -163,7 +162,7 @@ func PrimeUrl(u Url) os.Error {
 func main() {
 	var (
 		urlset *Urlset
-		err    os.Error
+		err    error
 	)
 	flag.Parse()
 	if flag.NArg() == 0 {
