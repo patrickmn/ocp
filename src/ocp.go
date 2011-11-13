@@ -2,19 +2,18 @@ package main
 
 import (
 	"compress/gzip"
-	"encoding/xml"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
-	"net/http"
-	"net/url"
+	"http"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"sync"
+	"url"
+	"xml"
 )
 
 const (
@@ -63,19 +62,19 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
+func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
-		err    error
+		err    os.Error
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
 		var res *http.Response
 		res, err = client.Get(path)
 		if res.Status == "404 Not Found" {
-			return &Urlset{}, errors.New("Web server returned 404 Not Found")
+			return &Urlset{}, os.NewError("Web server returned 404 Not Found")
 		} else if res.Status != "200 OK" {
-			return &Urlset{}, errors.New("Web server did not serve the file")
+			return &Urlset{}, os.NewError("Web server did not serve the file")
 		} else {
 			f = res.Body
 		}
@@ -90,7 +89,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		f, err = gzip.NewReader(f)
 		defer f.Close()
 		if err != nil {
-			return &Urlset{}, errors.New("Gzip decompression failed")
+			return &Urlset{}, os.NewError("Gzip decompression failed")
 		}
 	}
 	err = xml.Unmarshal(f, &urlset)
@@ -136,9 +135,9 @@ func PrimeUrlset(urlset *Urlset) {
 	wg.Wait()
 }
 
-func PrimeUrl(u Url) error {
+func PrimeUrl(u Url) os.Error {
 	var (
-		err   error
+		err   os.Error
 		found bool = false
 	)
 	if *verbose {
@@ -162,7 +161,7 @@ func PrimeUrl(u Url) error {
 func main() {
 	var (
 		urlset *Urlset
-		err    error
+		err    os.Error
 	)
 	flag.Parse()
 	if flag.NArg() == 0 {
