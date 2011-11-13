@@ -2,19 +2,19 @@ package main
 
 import (
 	"compress/gzip"
+	"encoding/xml"
 	"errors"
 	"flag"
 	"fmt"
-	"http"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"sync"
-	"url"
-	"xml"
 )
 
 const (
