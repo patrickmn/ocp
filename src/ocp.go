@@ -26,10 +26,11 @@ var (
 	wg     = &sync.WaitGroup{}
 	client = http.DefaultClient
 
-	throttle    *uint   = flag.Uint("c", 1, "pages to prime at once")
+	throttle    *uint   = flag.Uint("c", 5, "pages to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
 	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
-	verbose     *bool   = flag.Bool("v", false, "show information about primed pages")
+	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
+	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that can't be loaded")
 )
 
 type Sitemap struct {
@@ -67,7 +68,7 @@ func Get(url string) (r *http.Response, err os.Error) {
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("User-Agent", useragent)
 	if err != nil {
-                return nil, err
+		return nil, err
 	}
 	return client.Do(req)
 }
@@ -80,11 +81,12 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		res    *http.Response
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		if *verbose {
+			log.Println("Downloading", path)
+		}
 		res, err = Get(path)
-		if res.Status == "404 Not Found" {
-			return nil, os.NewError("Web server returned 404 Not Found")
-		} else if res.Status != "200 OK" {
-			return nil, os.NewError("Web server did not serve the file")
+		if res.Status != "200 OK" {
+			return nil, os.NewError("Could not fetch sitemap: " + res.Status)
 		}
 		f = res.Body
 	} else {
@@ -95,6 +97,9 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		return nil, err
 	}
 	if strings.HasSuffix(path, ".gz") {
+		if *verbose {
+			log.Println("Extracting compressed data")
+		}
 		f, err = gzip.NewReader(f)
 		defer f.Close()
 		if err != nil {
@@ -103,14 +108,14 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	}
 	err = xml.Unmarshal(f, &urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
-		ch := make(chan []Url, len(urlset.Sitemap))
+		ch := make(chan *Urlset, len(urlset.Sitemap))
 		if *verbose {
-			log.Printf("%s is a Sitemapindex. Fetching Urlsets from sitemaps...\n", path)
+			log.Printf("%s is a Sitemapindex\n", path)
 		}
 		for _, v := range urlset.Sitemap {
 			sem <- true
 			if *verbose {
-				log.Printf("Adding Urlset from sitemap %s\n", v.Loc)
+				log.Printf("Adding URLs from child sitemap %s\n", v)
 			}
 			go func(loc string) {
 				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
@@ -118,7 +123,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 				if err != nil {
 					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
 				} else {
-					ch <- ourlset.Url
+					ch <- ourlset
 				}
 				<-sem
 			}(v.Loc)
@@ -126,7 +131,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		// Add every URL from each Urlset to the main Urlset
 		for i := 0; i < len(urlset.Sitemap); i++ {
 			childUrlset := <-ch
-			urlset.Url = append(urlset.Url, childUrlset...)
+			urlset.Url = append(urlset.Url, childUrlset.Url...)
 		}
 	}
 	return &urlset, err
@@ -134,7 +139,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 
 func PrimeUrlset(urlset *Urlset) {
 	if *verbose {
-		log.Println("URLs in sitemap: ", urlset.Len())
+		log.Println("URLs to prime:", urlset.Len())
 	}
 	for _, u := range urlset.Url {
 		sem <- true
@@ -160,7 +165,16 @@ func PrimeUrl(u Url) os.Error {
 		}
 	}
 	if !found {
-		_, err = Get(u.Loc)
+		res, err := Get(u.Loc)
+		if (err != nil || res.Status != "200 OK") && !*nowarn {
+			var errmsg string
+			if err != nil {
+				errmsg = err.String()
+			} else {
+				errmsg = res.Status
+			}
+			log.Printf("Error priming %s: %s\n", u.Loc, errmsg)
+		}
 	}
 	wg.Done()
 	<-sem
