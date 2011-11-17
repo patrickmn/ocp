@@ -63,19 +63,24 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
+func Get(url string) (r *http.Response, err os.Error) {
+	req, err := http.NewRequest("GET", url, nil)
+	req.Header.Add("User-Agent", useragent)
+	if err != nil {
+                return nil, err
+	}
+	return client.Do(req)
+}
+
 func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
 		err    os.Error
+		res    *http.Response
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		req, err := http.NewRequest("GET", path, nil)
-		req.Header.Add("User-Agent", useragent)
-		if err != nil {
-			return nil, err
-		}
-		res, err := client.Do(req)
+		res, err = Get(path)
 		if res.Status == "404 Not Found" {
 			return nil, os.NewError("Web server returned 404 Not Found")
 		} else if res.Status != "200 OK" {
@@ -155,11 +160,7 @@ func PrimeUrl(u Url) os.Error {
 		}
 	}
 	if !found {
-		req, err := http.NewRequest("GET", u.Loc, nil)
-		req.Header.Add("User-Agent", useragent)
-		if err == nil {
-			_, err = client.Do(req)
-		}
+		_, err = Get(u.Loc)
 	}
 	wg.Done()
 	<-sem
