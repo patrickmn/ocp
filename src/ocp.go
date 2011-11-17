@@ -17,7 +17,8 @@ import (
 )
 
 const (
-	version string = "2.1"
+	version   = "2.1"
+	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
 var (
@@ -69,27 +70,30 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		err    os.Error
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		var res *http.Response
-		res, err = client.Get(path)
-		if res.Status == "404 Not Found" {
-			return &Urlset{}, os.NewError("Web server returned 404 Not Found")
-		} else if res.Status != "200 OK" {
-			return &Urlset{}, os.NewError("Web server did not serve the file")
-		} else {
-			f = res.Body
+		req, err := http.NewRequest("GET", path, nil)
+		req.Header.Add("User-Agent", useragent)
+		if err != nil {
+			return nil, err
 		}
+		res, err := client.Do(req)
+		if res.Status == "404 Not Found" {
+			return nil, os.NewError("Web server returned 404 Not Found")
+		} else if res.Status != "200 OK" {
+			return nil, os.NewError("Web server did not serve the file")
+		}
+		f = res.Body
 	} else {
 		f, err = os.Open(path)
 	}
 	defer f.Close()
 	if err != nil {
-		return &Urlset{}, err
+		return nil, err
 	}
 	if strings.HasSuffix(path, ".gz") {
 		f, err = gzip.NewReader(f)
 		defer f.Close()
 		if err != nil {
-			return &Urlset{}, os.NewError("Gzip decompression failed")
+			return nil, os.NewError("Gzip decompression failed")
 		}
 	}
 	err = xml.Unmarshal(f, &urlset)
@@ -151,7 +155,11 @@ func PrimeUrl(u Url) os.Error {
 		}
 	}
 	if !found {
-		_, err = client.Get(u.Loc)
+		req, err := http.NewRequest("GET", u.Loc, nil)
+		req.Header.Add("User-Agent", useragent)
+		if err == nil {
+			_, err = client.Do(req)
+		}
 	}
 	wg.Done()
 	<-sem
