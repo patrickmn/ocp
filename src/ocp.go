@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	version   = "2.1"
+	version   = "2.2"
 	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
@@ -26,11 +26,11 @@ var (
 	wg     = &sync.WaitGroup{}
 	client = http.DefaultClient
 
-	throttle    *uint   = flag.Uint("c", 5, "pages to prime at once")
+	throttle    *uint   = flag.Uint("c", 1, "URLs to prime at once")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
 	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
 	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
-	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that can't be loaded")
+	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that were not primed successfully")
 )
 
 type Sitemap struct {
