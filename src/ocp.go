@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	version   = "2.2"
+	version   = "2.3"
 	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
@@ -196,7 +196,7 @@ func main() {
 		fmt.Println("Examples:")
 		fmt.Println(" ", os.Args[0], "sitemap.xml")
 		fmt.Println(" ", os.Args[0], "http://mysite.com/sitemap.xml")
-		fmt.Println(" ", os.Args[0], "-c 10 http://mysite.com/sitemap.xml")
+		fmt.Println(" ", os.Args[0], "-c 10 http://mysite.com/sitemap.xml.gz")
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/cache/supercache/ http://mysite.com/sitemap.xml")
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/w3tc/pgcache/ -ls _index.html http://mysite.com/sitemap.xml")
 		fmt.Println("")
