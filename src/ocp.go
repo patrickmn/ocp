@@ -31,6 +31,7 @@ var (
 	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
 	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
 	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that were not primed successfully")
+	printurls   *bool   = flag.Bool("print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
 )
 
 type Sitemap struct {
@@ -199,6 +200,7 @@ func main() {
 		fmt.Println(" ", os.Args[0], "-c 10 http://mysite.com/sitemap.xml.gz")
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/cache/supercache/ http://mysite.com/sitemap.xml")
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/w3tc/pgcache/ -ls _index.html http://mysite.com/sitemap.xml")
+		fmt.Println(" ", os.Args[0], "--print http://mysite.com/sitemap.xml | xargs curl -I")
 		fmt.Println("")
 		fmt.Println("If specifying a sitemap URL, make sure to prepend http:// or https://")
 		return
@@ -210,6 +212,12 @@ func main() {
 		fmt.Println("Error:", err)
 	} else {
 		sort.Sort(urlset)
-		PrimeUrlset(urlset)
+		if *printurls {
+			for _, v := range urlset.Url {
+				fmt.Println(v.Loc)
+			}
+		} else {
+			PrimeUrlset(urlset)
+		}
 	}
 }
