@@ -154,20 +154,24 @@ func PrimeUrlset(urlset *Urlset) {
 
 func PrimeUrl(u Url) os.Error {
 	var (
-		err   os.Error
-		found bool = false
+		err    os.Error
+		found  = false
+		weight = int(u.Priority * 100)
 	)
-	if *verbose {
-		log.Printf("Get (weight %d) %s\n", int(u.Priority*100), u.Loc)
-	}
 	if *localDir != "" {
 		parsed, err := url.ParseWithReference(u.Loc)
 		joined := path.Join(*localDir, parsed.Path, *localSuffix)
 		if _, err = os.Lstat(joined); err == nil {
 			found = true
+			if *verbose {
+				log.Printf("Exists (weight %d) %s\n", weight, u.Loc)
+			}
 		}
 	}
 	if !found {
+		if *verbose {
+			log.Printf("Get (weight %d) %s\n", weight, u.Loc)
+		}
 		res, err := Get(u.Loc)
 		if (err != nil || res.Status != "200 OK") && !*nowarn {
 			var errmsg string
@@ -190,7 +194,7 @@ func PrimeUrl(u Url) os.Error {
 func maxStopper() {
 	count := uint(0)
 	for {
-		<- one
+		<-one
 		count++
 		if count == *max {
 			log.Fatal("Uncached page prime limit reached; stopping")
