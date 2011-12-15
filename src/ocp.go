@@ -17,16 +17,18 @@ import (
 )
 
 const (
-	version   = "2.3"
+	version   = "2.4 beta"
 	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
 var (
+	one    chan bool
 	sem    chan bool
 	wg     = &sync.WaitGroup{}
 	client = http.DefaultClient
 
 	throttle    *uint   = flag.Uint("c", 1, "URLs to prime at once")
+	max         *uint   = flag.Uint("max", 0, "maximum number of uncached URLs to prime")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
 	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
 	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
@@ -65,7 +67,7 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func Get(url string) (r *http.Response, err os.Error) {
+func Get(url string) (*http.Response, os.Error) {
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("User-Agent", useragent)
 	if err != nil {
@@ -176,10 +178,24 @@ func PrimeUrl(u Url) os.Error {
 			}
 			log.Printf("Error priming %s: %s\n", u.Loc, errmsg)
 		}
+		if *max > 0 {
+			one <- true
+		}
 	}
 	wg.Done()
 	<-sem
 	return err
+}
+
+func maxStopper() {
+	count := uint(0)
+	for {
+		<- one
+		count++
+		if count == *max {
+			log.Fatal("Uncached page prime limit reached; stopping")
+		}
+	}
 }
 
 func main() {
@@ -205,6 +221,9 @@ func main() {
 		fmt.Println("If specifying a sitemap URL, make sure to prepend http:// or https://")
 		return
 	}
+	if *max > 0 {
+		one = make(chan bool, *max)
+	}
 	sem = make(chan bool, *throttle)
 	path := flag.Arg(0)
 	urlset, err = GetUrlsFromSitemap(path, true)
@@ -217,6 +236,9 @@ func main() {
 				fmt.Println(v.Loc)
 			}
 		} else {
+			if *max > 0 {
+				go maxStopper()
+			}
 			PrimeUrlset(urlset)
 		}
 	}
