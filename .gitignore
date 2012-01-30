@@ -1,8 +1,5 @@
 ocp
 ocp.exe
-src/ocp
-src/ocp.exe
-src/_test*
 _test*
 *.5
 *.6
