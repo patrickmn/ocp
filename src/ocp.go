@@ -142,7 +142,15 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 
 func PrimeUrlset(urlset *Urlset) {
 	if *verbose {
-		log.Println("URLs to prime:", urlset.Len())
+		var top int
+		m := int(*max)
+		l := len(urlset.Url)
+		if l > m {
+			top = m
+		} else {
+			top = l
+		}
+		log.Println("URLs in sitemap:", l, "- URLs to prime:", top)
 	}
 	for _, u := range urlset.Url {
 		sem <- true
@@ -197,7 +205,8 @@ func maxStopper() {
 		<-one
 		count++
 		if count == *max {
-			log.Fatal("Uncached page prime limit reached; stopping")
+			log.Println("Uncached page prime limit reached; stopping")
+			os.Exit(0)
 		}
 	}
 }
@@ -226,7 +235,7 @@ func main() {
 		return
 	}
 	if *max > 0 {
-		one = make(chan bool, *max)
+		one = make(chan bool)
 	}
 	sem = make(chan bool, *throttle)
 	path := flag.Arg(0)
