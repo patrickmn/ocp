@@ -2,22 +2,23 @@ package main
 
 import (
 	"compress/gzip"
+	"encoding/xml"
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
-	"http"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"sync"
-	"url"
-	"xml"
 )
 
 const (
-	version   = "2.4"
+	version   = "2.5"
 	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
@@ -37,21 +38,21 @@ var (
 )
 
 type Sitemap struct {
-	Loc string
-	// Lastmod string
+	Loc string `xml:"loc"`
+	// Lastmod string `xml:"lastmod"`
 }
 
 type Url struct {
-	Loc string
-	// Lastmod string
-	// Changefreq string
-	Priority float64
+	Loc string `xml:"loc"`
+	// Lastmod string `xml:"lastmod"`
+	// Changefreq string `xml:"changefreq"`
+	Priority float64 `xml:"priority"`
 }
 
 type Urlset struct {
-	XMLName xml.Name "urlset"
-	Sitemap []Sitemap
-	Url     []Url
+	XMLName xml.Name  "urlset"
+	Sitemap []Sitemap `xml:"sitemap"`
+	Url     []Url     `xml:"url"`
 }
 
 // Functions needed by sort.Sort
@@ -67,20 +68,20 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func Get(url string) (*http.Response, os.Error) {
+func Get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
-	req.Header.Add("User-Agent", useragent)
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Add("User-Agent", useragent)
 	return client.Do(req)
 }
 
-func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
+func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
-		err    os.Error
+		err    error
 		res    *http.Response
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
@@ -89,7 +90,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		}
 		res, err = Get(path)
 		if res.Status != "200 OK" {
-			return nil, os.NewError("Could not fetch sitemap: " + res.Status)
+			return nil, err
 		}
 		f = res.Body
 	} else {
@@ -106,10 +107,14 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 		f, err = gzip.NewReader(f)
 		defer f.Close()
 		if err != nil {
-			return nil, os.NewError("Gzip decompression failed")
+			return nil, err
 		}
 	}
-	err = xml.Unmarshal(f, &urlset)
+	data, err := ioutil.ReadAll(f)
+	if err != nil {
+		return nil, err
+	}
+	err = xml.Unmarshal(data, &urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
 		ch := make(chan *Urlset, len(urlset.Sitemap))
 		if *verbose {
@@ -125,6 +130,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, os.Error) {
 				ourlset, err := GetUrlsFromSitemap(loc, false)
 				if err != nil {
 					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
+					ch <- &Urlset{}
 				} else {
 					ch <- ourlset
 				}
@@ -145,7 +151,7 @@ func PrimeUrlset(urlset *Urlset) {
 		var top int
 		m := int(*max)
 		l := len(urlset.Url)
-		if l > m {
+		if m > 0 && l > m {
 			top = m
 		} else {
 			top = l
@@ -160,9 +166,9 @@ func PrimeUrlset(urlset *Urlset) {
 	wg.Wait()
 }
 
-func PrimeUrl(u Url) os.Error {
+func PrimeUrl(u Url) error {
 	var (
-		err    os.Error
+		err    error
 		found  = false
 		weight = int(u.Priority * 100)
 	)
@@ -184,7 +190,7 @@ func PrimeUrl(u Url) os.Error {
 		if (err != nil || res.Status != "200 OK") && !*nowarn {
 			var errmsg string
 			if err != nil {
-				errmsg = err.String()
+				errmsg = err.Error()
 			} else {
 				errmsg = res.Status
 			}
@@ -214,7 +220,7 @@ func maxStopper() {
 func main() {
 	var (
 		urlset *Urlset
-		err    os.Error
+		err    error
 	)
 	flag.Parse()
 	if flag.NArg() == 0 {
