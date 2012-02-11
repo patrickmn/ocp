@@ -187,14 +187,15 @@ func PrimeUrl(u Url) error {
 			log.Printf("Get (weight %d) %s\n", weight, u.Loc)
 		}
 		res, err := Get(u.Loc)
-		if (err != nil || res.Status != "200 OK") && !*nowarn {
-			var errmsg string
-			if err != nil {
-				errmsg = err.Error()
-			} else {
-				errmsg = res.Status
+		if err != nil {
+			if !*nowarn {
+				log.Printf("Error priming %s: %v\n", u.Loc, err)
 			}
-			log.Printf("Error priming %s: %s\n", u.Loc, errmsg)
+		} else {
+			res.Body.Close()
+			if res.Status != "200 OK" && !*nowarn {
+				log.Printf("Bad response for %s: %s\n", u.Loc, res.Status)
+			}
 		}
 		if *max > 0 {
 			one <- true
