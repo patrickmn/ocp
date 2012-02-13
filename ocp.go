@@ -90,7 +90,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		}
 		res, err = Get(path)
 		if res.Status != "200 OK" {
-			return nil, err
+			return nil, fmt.Errorf("HTTP %s", res.Status)
 		}
 		f = res.Body
 	} else {
@@ -123,14 +123,14 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		for _, v := range urlset.Sitemap {
 			sem <- true
 			if *verbose {
-				log.Printf("Adding URLs from child sitemap %s\n", v)
+				log.Printf("Adding URLs from child sitemap %s\n", v.Loc)
 			}
 			go func(loc string) {
 				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
 				ourlset, err := GetUrlsFromSitemap(loc, false)
 				if err != nil {
 					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
-					ch <- &Urlset{}
+					ch <- nil
 				} else {
 					ch <- ourlset
 				}
@@ -140,7 +140,9 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		// Add every URL from each Urlset to the main Urlset
 		for i := 0; i < len(urlset.Sitemap); i++ {
 			childUrlset := <-ch
-			urlset.Url = append(urlset.Url, childUrlset.Url...)
+			if childUrlset != nil {
+				urlset.Url = append(urlset.Url, childUrlset.Url...)
+			}
 		}
 	}
 	return &urlset, err
