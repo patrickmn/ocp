@@ -21,4 +21,6 @@ Note: You do not need to have Go installed to run the stand-alone version.
 
   ./ocp http://mysite.com/sitemap.xml
 
-See http://patrickmylund.com/projects/ocp/ for more examples.
+Run ocp without any arguments for details.
+
+See http://patrickmylund.com/projects/ocp/ for more information.
