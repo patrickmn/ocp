@@ -96,10 +96,10 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	} else {
 		f, err = os.Open(path)
 	}
-	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 	if strings.HasSuffix(path, ".gz") {
 		if *verbose {
 			log.Println("Extracting compressed data")
