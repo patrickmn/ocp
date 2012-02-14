@@ -1,0 +1,24 @@
+Optimus Cache Prime (OCP) is a smart cache preloader for websites with XML
+sitemaps. It crawls all URLs in a given sitemap so the web server builds
+cached versions of the pages before visitors or search engine spiders arrive.
+
+Since Google began penalizing websites with long response times in their
+rankings, serving all of your pages quickly has become more important than
+ever. Optimus Cache Prime helps you do that by making sure your cache--be it
+an in-memory cache like memcached or APC, or a flat file cache like WP Super
+Cache or W3 Total Cache--is primed so random requests are served lightning fast.
+
+== Installation
+
+Download OCP from http://patrickmylund.com/projects/ocp/
+
+If you have Go installed, you can run: go get github.com/pmylund/ocp
+(an ocp binary will be added to your GOPATH/bin folder)
+
+Note: You do not need to have Go installed to run the stand-alone version.
+
+== Usage
+
+  ./ocp http://mysite.com/sitemap.xml
+
+See http://patrickmylund.com/projects/ocp/ for more examples.
