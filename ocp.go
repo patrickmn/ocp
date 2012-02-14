@@ -175,12 +175,15 @@ func PrimeUrl(u Url) error {
 		weight = int(u.Priority * 100)
 	)
 	if *localDir != "" {
-		parsed, err := url.ParseWithReference(u.Loc)
-		joined := path.Join(*localDir, parsed.Path, *localSuffix)
-		if _, err = os.Lstat(joined); err == nil {
-			found = true
-			if *verbose {
-				log.Printf("Exists (weight %d) %s\n", weight, u.Loc)
+		var parsed *url.URL
+		parsed, err = url.ParseWithReference(u.Loc)
+		if err == nil {
+			joined := path.Join(*localDir, parsed.Path, *localSuffix)
+			if _, err = os.Lstat(joined); err == nil {
+				found = true
+				if *verbose {
+					log.Printf("Exists (weight %d) %s\n", weight, u.Loc)
+				}
 			}
 		}
 	}
