@@ -1,0 +1,8 @@
+Optimus Cache Prime
+http://patrickmylund.com/projects/ocp/
+
+Usage: python ocp.py <path/url to sitemap.xml>
+
+You can run OCP without any arguments after configuring the settings inside the script.
+
+For more details, see http://patrickmylund.com/projects/ocp/
