@@ -89,15 +89,18 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 			log.Println("Downloading", path)
 		}
 		res, err = Get(path)
+		if err != nil {
+			return nil, err
+		}
 		if res.Status != "200 OK" {
 			return nil, fmt.Errorf("HTTP %s", res.Status)
 		}
 		f = res.Body
 	} else {
 		f, err = os.Open(path)
-	}
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 	defer f.Close()
 	if strings.HasSuffix(path, ".gz") {
