@@ -108,10 +108,10 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 			log.Println("Extracting compressed data")
 		}
 		f, err = gzip.NewReader(f)
-		defer f.Close()
 		if err != nil {
 			return nil, err
 		}
+		defer f.Close()
 	}
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
