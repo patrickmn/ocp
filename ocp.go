@@ -179,7 +179,7 @@ func PrimeUrl(u Url) error {
 	)
 	if *localDir != "" {
 		var parsed *url.URL
-		parsed, err = url.ParseWithFragment(u.Loc)
+		parsed, err = url.Parse(u.Loc)
 		if err == nil {
 			joined := path.Join(*localDir, parsed.Path, *localSuffix)
 			if _, err = os.Lstat(joined); err == nil {
