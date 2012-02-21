@@ -163,9 +163,9 @@ func PrimeUrlset(urlset *Urlset) {
 		}
 		log.Println("URLs in sitemap:", l, "- URLs to prime:", top)
 	}
+	wg.Add(len(urlset.Url))
 	for _, u := range urlset.Url {
 		sem <- true
-		wg.Add(1)
 		go PrimeUrl(u)
 	}
 	wg.Wait()
