@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	version   = "2.5"
-	useragent = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
+	version   = "2.6"
+	defaultUA = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
 var (
@@ -32,6 +32,7 @@ var (
 	max         *uint   = flag.Uint("max", 0, "maximum number of uncached URLs to prime")
 	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
 	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
+	useragent   *string = flag.String("ua", defaultUA, "User-Agent header to send")
 	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
 	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that were not primed successfully")
 	printurls   *bool   = flag.Bool("print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
@@ -73,7 +74,7 @@ func Get(url string) (*http.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("User-Agent", useragent)
+	req.Header.Add("User-Agent", *useragent)
 	return client.Do(req)
 }
 
