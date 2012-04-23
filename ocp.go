@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -114,11 +113,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		}
 		defer f.Close()
 	}
-	data, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-	err = xml.Unmarshal(data, &urlset)
+	err = xml.NewDecoder(f).Decode(&urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
 		ch := make(chan *Urlset, len(urlset.Sitemap))
 		if *verbose {
