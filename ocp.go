@@ -115,7 +115,8 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	}
 	err = xml.NewDecoder(f).Decode(&urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
-		ch := make(chan *Urlset, len(urlset.Sitemap))
+		children := len(urlset.Sitemap)
+		ch := make(chan Urlset, children)
 		if *verbose {
 			log.Printf("%s is a Sitemapindex\n", path)
 		}
@@ -129,19 +130,17 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 				ourlset, err := GetUrlsFromSitemap(loc, false)
 				if err != nil {
 					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
-					ch <- nil
+					ch <- Urlset{}
 				} else {
-					ch <- ourlset
+					ch <- *ourlset
 				}
 				<-sem
 			}(v.Loc)
 		}
 		// Add every URL from each Urlset to the main Urlset
-		for i := 0; i < len(urlset.Sitemap); i++ {
+		for i := 0; i < children; i++ {
 			childUrlset := <-ch
-			if childUrlset != nil {
-				urlset.Url = append(urlset.Url, childUrlset.Url...)
-			}
+			urlset.Url = append(urlset.Url, childUrlset.Url...)
 		}
 	}
 	return &urlset, err
