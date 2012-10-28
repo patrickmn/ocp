@@ -12,7 +12,7 @@ import (
 
 func init() {
 	flag.Parse()
-	sem = make(chan bool, *throttle)
+	sem = make(chan bool, throttle)
 }
 
 var hostPortHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -22,7 +22,7 @@ var hostPortHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 	w.Write([]byte(r.RemoteAddr))
 })
 
-func DummyServer(ch chan<- string) *httptest.Server {
+func dummyServer(ch chan<- string) *httptest.Server {
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "ocpdummy %s", r.URL.Path)
 		ch <- r.URL.Path
@@ -51,7 +51,7 @@ func TestGetUrlsFromSitemap(t *testing.T) {
 </url>
 </urlset>`)
 	f.Close()
-	urlset, err := GetUrlsFromSitemap(f.Name(), true)
+	urlset, err := getUrlsFromSitemap(f.Name(), true)
 	if err != nil ||
 		urlset.Url[0].Loc != "http://localhost:8081/a" ||
 		urlset.Url[0].Priority != 0.4 ||
@@ -120,7 +120,7 @@ func TestGetUrlsFromSitemapindex(t *testing.T) {
 </sitemap>
 </sitemapindex>`, f1.Name(), f2.Name(), f3.Name())
 	fi.Close()
-	urlset, err := GetUrlsFromSitemap(fi.Name(), true)
+	urlset, err := getUrlsFromSitemap(fi.Name(), true)
 	if err != nil ||
 		urlset.Url[0].Loc != "http://localhost:8081/a" ||
 		urlset.Url[0].Priority != 0.4 ||
@@ -134,14 +134,14 @@ func TestGetUrlsFromSitemapindex(t *testing.T) {
 
 func TestPrimeUrlset(t *testing.T) {
 	ch := make(chan string)
-	s := DummyServer(ch)
+	s := dummyServer(ch)
 	defer s.Close()
 	a := Url{s.URL + "/a", 0.4}
 	b := Url{s.URL + "/b", 0.6}
 	c := Url{s.URL + "/c", 1.0}
 	urlset := &Urlset{Url: []Url{a, b, c}}
 	sort.Sort(urlset)
-	go PrimeUrlset(urlset)
+	go primeUrlset(urlset)
 	for i := 0; i < 3; i++ {
 		msg := <-ch
 		if msg != "/a" && msg != "/b" && msg != "/c" {

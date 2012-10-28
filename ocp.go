@@ -17,24 +17,15 @@ import (
 )
 
 const (
-	version   = "2.6"
+	version   = "2.7"
 	defaultUA = "Optimus Cache Prime/" + version + " (http://patrickmylund.com/projects/ocp/)"
 )
 
 var (
 	one    chan bool
 	sem    chan bool
-	wg     = &sync.WaitGroup{}
+	wg     sync.WaitGroup
 	client = http.DefaultClient
-
-	throttle    *uint   = flag.Uint("c", 1, "URLs to prime at once")
-	max         *uint   = flag.Uint("max", 0, "maximum number of uncached URLs to prime")
-	localDir    *string = flag.String("l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
-	localSuffix *string = flag.String("ls", "index.html", "suffix of locally cached files")
-	useragent   *string = flag.String("ua", defaultUA, "User-Agent header to send")
-	verbose     *bool   = flag.Bool("v", false, "show additional information about the priming process")
-	nowarn      *bool   = flag.Bool("no-warn", false, "do not warn about pages that were not primed successfully")
-	printurls   *bool   = flag.Bool("print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
 )
 
 type Sitemap struct {
@@ -68,16 +59,16 @@ func (u Urlset) Less(i, j int) bool {
 	return u.Url[i].Priority > u.Url[j].Priority
 }
 
-func Get(url string) (*http.Response, error) {
+func get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("User-Agent", *useragent)
+	req.Header.Set("User-Agent", userAgent)
 	return client.Do(req)
 }
 
-func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
+func getUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	var (
 		urlset Urlset
 		f      io.ReadCloser
@@ -85,10 +76,10 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 		res    *http.Response
 	)
 	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		if *verbose {
+		if verbose {
 			log.Println("Downloading", path)
 		}
-		res, err = Get(path)
+		res, err = get(path)
 		if err != nil {
 			return nil, err
 		}
@@ -104,7 +95,7 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	}
 	defer f.Close()
 	if strings.HasSuffix(path, ".gz") {
-		if *verbose {
+		if verbose {
 			log.Println("Extracting compressed data")
 		}
 		f, err = gzip.NewReader(f)
@@ -116,23 +107,23 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	err = xml.NewDecoder(f).Decode(&urlset)
 	if err == nil && follow && len(urlset.Sitemap) > 0 { // This is a sitemapindex
 		children := len(urlset.Sitemap)
-		ch := make(chan Urlset, children)
-		if *verbose {
+		ch := make(chan *Urlset, children)
+		if verbose {
 			log.Printf("%s is a Sitemapindex\n", path)
 		}
 		for _, v := range urlset.Sitemap {
 			sem <- true
-			if *verbose {
+			if verbose {
 				log.Printf("Adding URLs from child sitemap %s\n", v.Loc)
 			}
 			go func(loc string) {
 				// Follow is false as Sitemapindex spec says sitemapindex children are illegal
-				ourlset, err := GetUrlsFromSitemap(loc, false)
+				ourlset, err := getUrlsFromSitemap(loc, false)
 				if err != nil {
 					log.Printf("Error getting Urlset from sitemap %s: %s", loc, err)
-					ch <- Urlset{}
+					ch <- nil
 				} else {
-					ch <- *ourlset
+					ch <- ourlset
 				}
 				<-sem
 			}(v.Loc)
@@ -146,10 +137,23 @@ func GetUrlsFromSitemap(path string, follow bool) (*Urlset, error) {
 	return &urlset, err
 }
 
-func PrimeUrlset(urlset *Urlset) {
-	if *verbose {
+func urlSlice(args []string) []Url {
+	urls := make([]Url, len(args))
+	for i, v := range args {
+		if !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+			v = "http://" + v
+		}
+		urls[i] = Url{
+			Loc: v,
+		}
+	}
+	return urls
+}
+
+func primeUrlset(urlset *Urlset) {
+	if verbose {
 		var top int
-		m := int(*max)
+		m := int(max)
 		l := len(urlset.Url)
 		if m > 0 && l > m {
 			top = m
@@ -161,46 +165,46 @@ func PrimeUrlset(urlset *Urlset) {
 	wg.Add(len(urlset.Url))
 	for _, u := range urlset.Url {
 		sem <- true
-		go PrimeUrl(u)
+		go primeUrl(u)
 	}
 	wg.Wait()
 }
 
-func PrimeUrl(u Url) error {
+func primeUrl(u Url) error {
 	var (
 		err    error
 		found  = false
 		weight = int(u.Priority * 100)
 	)
-	if *localDir != "" {
+	if localDir != "" {
 		var parsed *url.URL
 		parsed, err = url.Parse(u.Loc)
 		if err == nil {
-			joined := path.Join(*localDir, parsed.Path, *localSuffix)
+			joined := path.Join(localDir, parsed.Path, localSuffix)
 			if _, err = os.Lstat(joined); err == nil {
 				found = true
-				if *verbose {
+				if verbose {
 					log.Printf("Exists (weight %d) %s\n", weight, u.Loc)
 				}
 			}
 		}
 	}
 	if !found {
-		if *verbose {
+		if verbose {
 			log.Printf("Get (weight %d) %s\n", weight, u.Loc)
 		}
-		res, err := Get(u.Loc)
+		res, err := get(u.Loc)
 		if err != nil {
-			if !*nowarn {
+			if !nowarn {
 				log.Printf("Error priming %s: %v\n", u.Loc, err)
 			}
 		} else {
 			res.Body.Close()
-			if res.Status != "200 OK" && !*nowarn {
+			if res.Status != "200 OK" && !nowarn {
 				log.Printf("Bad response for %s: %s\n", u.Loc, res.Status)
 			}
 		}
-		if *max > 0 {
+		if max > 0 {
 			one <- true
 		}
 	}
@@ -214,11 +218,36 @@ func maxStopper() {
 	for {
 		<-one
 		count++
-		if count == *max {
+		if count == max {
 			log.Println("Uncached page prime limit reached; stopping")
 			os.Exit(0)
 		}
 	}
+}
+
+var (
+	throttle    uint
+	max         uint
+	localDir    string
+	localSuffix string
+	userAgent   string
+	verbose     bool
+	nowarn      bool
+	printUrls   bool
+	primeUrls   bool
+)
+
+func init() {
+	flag.UintVar(&throttle, "c", 1, "URLs to prime at once")
+	flag.UintVar(&max, "max", 0, "maximum number of uncached URLs to prime")
+	flag.StringVar(&localDir, "l", "", "directory containing cached files (relative file names, i.e. /about/ -> <path>/about/index.html)")
+	flag.StringVar(&localSuffix, "ls", "index.html", "suffix of locally cached files")
+	flag.StringVar(&userAgent, "ua", defaultUA, "User-Agent header to send")
+	flag.BoolVar(&verbose, "v", false, "show additional information about the priming process")
+	flag.BoolVar(&nowarn, "no-warn", false, "do not warn about pages that were not primed successfully")
+	flag.BoolVar(&printUrls, "print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
+	flag.BoolVar(&primeUrls, "urls", false, "prime the URLs given as arguments rather than a sitemap")
+	flag.Parse()
 }
 
 func main() {
@@ -226,7 +255,6 @@ func main() {
 		urlset *Urlset
 		err    error
 	)
-	flag.Parse()
 	if flag.NArg() == 0 {
 		fmt.Println("Optimus Cache Prime", version)
 		fmt.Println("http://patrickmylund.com/projects/ocp/")
@@ -240,29 +268,36 @@ func main() {
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/cache/supercache/ http://mysite.com/sitemap.xml")
 		fmt.Println(" ", os.Args[0], "-l /var/www/mysite.com/wp-content/w3tc/pgcache/ -ls _index.html http://mysite.com/sitemap.xml")
 		fmt.Println(" ", os.Args[0], "--print http://mysite.com/sitemap.xml | xargs curl -I")
+		fmt.Println(" ", os.Args[0], "--urls http://foo.com/a http://foo.com/b")
 		fmt.Println("")
 		fmt.Println("If specifying a sitemap URL, make sure to prepend http:// or https://")
 		return
 	}
-	if *max > 0 {
+	if max > 0 {
 		one = make(chan bool)
 	}
-	sem = make(chan bool, *throttle)
-	path := flag.Arg(0)
-	urlset, err = GetUrlsFromSitemap(path, true)
+	sem = make(chan bool, throttle)
+	if primeUrls {
+		urlset = &Urlset{
+			Url: urlSlice(flag.Args()),
+		}
+	} else {
+		path := flag.Arg(0)
+		urlset, err = getUrlsFromSitemap(path, true)
+		sort.Sort(urlset)
+	}
 	if err != nil {
 		fmt.Println("Error:", err)
 	} else {
-		sort.Sort(urlset)
-		if *printurls {
+		if printUrls {
 			for _, v := range urlset.Url {
 				fmt.Println(v.Loc)
 			}
 		} else {
-			if *max > 0 {
+			if max > 0 {
 				go maxStopper()
 			}
-			PrimeUrlset(urlset)
+			primeUrlset(urlset)
 		}
 	}
 }
