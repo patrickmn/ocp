@@ -249,7 +249,7 @@ func init() {
 	flag.BoolVar(&nowarn, "no-warn", false, "do not warn about pages that were not primed successfully")
 	flag.BoolVar(&printUrls, "print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
 	flag.BoolVar(&primeUrls, "urls", false, "prime the URLs given as arguments rather than a sitemap")
-	flag.BoolVar(&insecureSsl, "insecure-ssl", false, "disable SSL certificate verification when priming https URLs")
+	flag.BoolVar(&insecureSsl, "insecure-ssl", false, "disable SSL certificate verification when priming HTTPS URLs")
 	flag.Parse()
 }
 
