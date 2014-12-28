@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"crypto/tls"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -235,6 +236,7 @@ var (
 	nowarn      bool
 	printUrls   bool
 	primeUrls   bool
+	insecureSsl bool
 )
 
 func init() {
@@ -247,6 +249,7 @@ func init() {
 	flag.BoolVar(&nowarn, "no-warn", false, "do not warn about pages that were not primed successfully")
 	flag.BoolVar(&printUrls, "print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
 	flag.BoolVar(&primeUrls, "urls", false, "prime the URLs given as arguments rather than a sitemap")
+	flag.BoolVar(&insecureSsl, "insecure-ssl", false, "disable SSL certificate verification when priming https URLs")
 	flag.Parse()
 }
 
@@ -277,6 +280,15 @@ func main() {
 		one = make(chan bool)
 	}
 	sem = make(chan bool, throttle)
+	if insecureSsl {
+		client = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true,
+				},
+			},
+		}
+	}
 	if primeUrls {
 		urlset = &Urlset{
 			Url: urlSlice(flag.Args()),
@@ -284,11 +296,14 @@ func main() {
 	} else {
 		path := flag.Arg(0)
 		urlset, err = getUrlsFromSitemap(path, true)
-		sort.Sort(urlset)
 	}
 	if err != nil {
 		fmt.Println("Error:", err)
+		if strings.HasSuffix(err.Error(), "x509: certificate signed by unknown authority") {
+			fmt.Println("\nUse the --insecure-ssl toggle to disable certificate verification") 
+		}
 	} else {
+		sort.Sort(urlset)
 		if printUrls {
 			for _, v := range urlset.Url {
 				fmt.Println(v.Loc)
