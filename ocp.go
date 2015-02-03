@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -173,9 +174,11 @@ func primeUrlset(urlset *Urlset) {
 
 func primeUrl(u Url) error {
 	var (
-		err    error
-		found  = false
-		weight = int(u.Priority * 100)
+		err     error
+		found   = false
+		weight  = int(u.Priority * 100)
+		start   time.Time
+		elapsed time.Duration
 	)
 	if localDir != "" {
 		var parsed *url.URL
@@ -194,13 +197,22 @@ func primeUrl(u Url) error {
 		if verbose {
 			log.Printf("Get (weight %d) %s\n", weight, u.Loc)
 		}
+		if audit {
+			start = time.Now()
+		}
 		res, err := get(u.Loc)
+		if audit {
+			elapsed = time.Since(start)
+		}
 		if err != nil {
 			if !nowarn {
 				log.Printf("Error priming %s: %v\n", u.Loc, err)
 			}
 		} else {
 			res.Body.Close()
+			if audit {
+				fmt.Printf("%d\t%4.2f\t%s\n", res.StatusCode, float64(elapsed)/float64(time.Millisecond), u.Loc)
+			}
 			if res.Status != "200 OK" && !nowarn {
 				log.Printf("Bad response for %s: %s\n", u.Loc, res.Status)
 			}
@@ -233,6 +245,7 @@ var (
 	localSuffix string
 	userAgent   string
 	verbose     bool
+	audit       bool
 	nowarn      bool
 	printUrls   bool
 	primeUrls   bool
@@ -247,6 +260,7 @@ func init() {
 	flag.StringVar(&userAgent, "ua", defaultUA, "User-Agent header to send")
 	flag.BoolVar(&verbose, "v", false, "show additional information about the priming process")
 	flag.BoolVar(&nowarn, "no-warn", false, "do not warn about pages that were not primed successfully")
+	flag.BoolVar(&audit, "a", false, "output HTTP status codes, fetch time. Incompatible with -v -a")
 	flag.BoolVar(&printUrls, "print", false, "(exclusive) just print the sorted URLs (can be used with xargs)")
 	flag.BoolVar(&primeUrls, "urls", false, "prime the URLs given as arguments rather than a sitemap")
 	flag.BoolVar(&insecureSsl, "insecure-ssl", false, "disable SSL certificate verification when priming HTTPS URLs")
@@ -296,6 +310,10 @@ func main() {
 	} else {
 		path := flag.Arg(0)
 		urlset, err = getUrlsFromSitemap(path, true)
+	}
+	if audit {
+		verbose = false
+		nowarn = true
 	}
 	if err != nil {
 		fmt.Println("Error:", err)
